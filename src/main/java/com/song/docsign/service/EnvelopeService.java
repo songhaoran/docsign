@@ -17,10 +17,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.List;
 import java.util.*;
 
@@ -42,19 +39,19 @@ public class EnvelopeService {
     public String getDocSignUrl(String templateId) {
         String signerName = "wen";
         String signerEmail = "654644141@qq.com";
-        String roleName = "customer";
+        String roleName = "investor";
         String return_url = "http://localhost:8080";
         String authenticationMethod = "None";
         String emailSubject = "请签署文件";
 
         Text nameText = new Text();
-        nameText.setName("name");
-        nameText.setTabLabel("name");
+//        nameText.setName("name");
+        nameText.setTabLabel("${cmn_float_percent}");
         nameText.setValue("songhaoran");
         nameText.setLocked(Boolean.TRUE.toString());
         Text ageText = new Text();
-        ageText.setName("age");
-        ageText.setTabLabel("必填");
+        ageText.setTabLabel("name");
+        ageText.setValue("名字");
 
         Tabs tabs = new Tabs();
         tabs.setTextTabs(Arrays.asList(nameText, ageText));
@@ -216,6 +213,70 @@ public class EnvelopeService {
         } catch (ApiException e) {
             log.error("[]", e);
             throw new RuntimeException("下载模板文件失败");
+        }
+    }
+
+
+    /**
+     * 创建模板
+     *
+     * @return
+     * @throws Exception
+     */
+    public String createTemplate() {
+        try {
+            InputStream in = null;
+            File file;
+            String base64;
+            try {
+                file = new File("/Users/songwenhao/Documents/文档/公募基金订单模板1.pdf");
+                in = new FileInputStream(file);
+                byte[] bytes = new byte[(int) file.length()];
+                in.read(bytes);
+                base64 = Base64.getEncoder().encodeToString(bytes);
+            } catch (IOException e) {
+                e.printStackTrace();
+                return "";
+            } finally {
+                if (in != null) {
+                    in.close();
+                }
+            }
+
+
+            Signer signer = new Signer();
+            // TODO: 2020/5/18 这里需要确认下怎么查
+            signer.setRecipientId("15764476");
+            signer.setRoleName("investor");
+
+            Recipients recipients = new Recipients();
+            recipients.setSigners(Arrays.asList(signer));
+
+            Document document = new Document();
+            document.setDocumentBase64(base64);
+            document.setName(file.getName());
+            document.setDocumentId("1");
+            document.setOrder("1");
+            document.setTransformPdfFields(Boolean.TRUE.toString());
+
+            EnvelopeTemplate envelopeTemplate = new EnvelopeTemplate();
+            envelopeTemplate.setRecipients(recipients);
+            envelopeTemplate.setDocuments(Arrays.asList(document));
+            envelopeTemplate.setFolderName("Templates");
+            envelopeTemplate.setName("测试api上传模板");
+            envelopeTemplate.setDescription("测试desc");
+            envelopeTemplate.setShared(Boolean.TRUE.toString());
+
+            TemplatesApi templatesApi = DocSignUtil.getTemplatesApi();
+            TemplateSummary templateSummary = templatesApi.createTemplate(DocSignUtil.accountId, envelopeTemplate);
+            String templateId = templateSummary.getTemplateId();
+            return templateId;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return "";
+        } catch (ApiException e) {
+            e.printStackTrace();
+            return "";
         }
     }
 }
