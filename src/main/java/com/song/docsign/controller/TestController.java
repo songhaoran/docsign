@@ -20,7 +20,7 @@ public class TestController {
     @GetMapping("/template/download_doc")
     @ApiOperation(value = "下载模板的所有文档")
     public void downloadTempDoc(@RequestParam(value = "template_id", required = false) String templateId) {
-        templateId = "9e9c4180-a8b3-4cc5-9a95-16537abd729f";
+        templateId = "035c6d36-3fe0-4e91-a31a-88c0bd8a0b57";
         envelopeService.downloadTemplateDocs(templateId);
     }
 
@@ -28,7 +28,7 @@ public class TestController {
     @GetMapping("/envelope/get_sign_url")
     @ApiOperation(value = "获取签字链接(测试重定向链接加参数)")
     public String getSignUrl(@RequestParam(value = "template_id", required = false) String templateId) {
-        templateId = "9e9c4180-a8b3-4cc5-9a95-16537abd729f";
+        templateId = "035c6d36-3fe0-4e91-a31a-88c0bd8a0b57";
         String docSignUrl = envelopeService.getDocSignUrl(templateId);
         return docSignUrl;
     }

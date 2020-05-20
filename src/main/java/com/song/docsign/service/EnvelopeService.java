@@ -3,6 +3,7 @@ package com.song.docsign.service;
 import com.alibaba.fastjson.JSON;
 import com.docusign.esign.api.EnvelopesApi;
 import com.docusign.esign.api.TemplatesApi;
+import com.docusign.esign.api.UsersApi;
 import com.docusign.esign.client.ApiException;
 import com.docusign.esign.model.*;
 import com.song.docsign.util.DocSignUtil;
@@ -38,14 +39,37 @@ public class EnvelopeService {
      */
     public String getDocSignUrl(String templateId) {
         String signerName = "wen";
-        String signerEmail = "654644141@qq.com";
+        String signerEmail = "wen-8801@163.com";
+        String signerClientUserId;
         String roleName = "investor";
         String return_url = "http://localhost:8080";
         String authenticationMethod = "None";
         String emailSubject = "请签署文件";
 
+
+        // 1. 创建用户
+        UsersApi usersApi = DocSignUtil.getUsersApi();
+        UserInformation userInformation = new UserInformation();
+        userInformation.setEmail(signerEmail);
+        userInformation.setUserName(signerName);
+        NewUsersDefinition newUsersDefinition = new NewUsersDefinition();
+        newUsersDefinition.addNewUsersItem(userInformation);
+        List<NewUser> newUsers = null;
+        try {
+            NewUsersSummary newUsersSummary = usersApi.create(DocSignUtil.accountId, newUsersDefinition);
+            newUsers = newUsersSummary.getNewUsers();
+            if (newUsers.size() == 0) {
+                return "";
+            }
+        } catch (ApiException e) {
+            e.printStackTrace();
+            return "";
+        }
+        signerClientUserId = newUsers.get(0).getUserId();
+
+
+        // 2. 创建envelope
         Text nameText = new Text();
-//        nameText.setName("name");
         nameText.setTabLabel("${cmn_float_percent}");
         nameText.setValue("songhaoran");
         nameText.setLocked(Boolean.TRUE.toString());
@@ -59,8 +83,10 @@ public class EnvelopeService {
         TemplateRole templateRole = new TemplateRole();
         templateRole.setEmail(signerEmail);
         templateRole.setName(signerName);
+        templateRole.setClientUserId(signerClientUserId);
         templateRole.setRoleName(roleName);
         templateRole.setTabs(tabs);
+        templateRole.setAccessCode("12345s");
 
         EnvelopeDefinition envelopeDefinition = new EnvelopeDefinition();
         envelopeDefinition.setEmailSubject(emailSubject);
@@ -69,7 +95,7 @@ public class EnvelopeService {
         envelopeDefinition.setTemplateRoles(Arrays.asList(templateRole));
 
         EnvelopesApi envelopesApi = DocSignUtil.getEnvelopesApi();
-        EnvelopeSummary envelopeSummary = null;
+        EnvelopeSummary envelopeSummary;
         try {
             envelopeSummary = envelopesApi.createEnvelope(DocSignUtil.accountId, envelopeDefinition);
         } catch (ApiException e) {
@@ -80,12 +106,15 @@ public class EnvelopeService {
         String envelopeId = envelopeSummary.getEnvelopeId();
         log.info("[]envelope_id->{}", envelopeId);
 
+
+        // 3. 获取签字链接
         RecipientViewRequest viewRequest = new RecipientViewRequest();
         viewRequest.setReturnUrl(return_url);
         viewRequest.setAuthenticationMethod(authenticationMethod);
         viewRequest.setEmail(signerEmail);
         viewRequest.setUserName(signerName);
-        ViewUrl viewUrl = null;
+        viewRequest.setClientUserId(signerClientUserId);
+        ViewUrl viewUrl;
         try {
             viewUrl = envelopesApi.createRecipientView(DocSignUtil.accountId, envelopeId, viewRequest);
         } catch (ApiException e) {
