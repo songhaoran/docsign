@@ -43,12 +43,14 @@ public class EnvelopeService {
      * @throws Exception
      */
     public String getDocSignUrl(String templateId) throws Exception {
+        // TODO: 2020/5/21 如果实际应用,应先将订单之前的信封作废
+
         String signerName = "wen";
 //        String signerEmail = "30888649@qq.com";
-        String signerEmail = "wen-8801@163.com";
+        String signerEmail = "654644141@qq.com";
         String signerClientUserId = "";
         String roleName = "investor";
-        String return_url = "http://localhost:8080";
+        String return_url = "http://localhost:8080?envelope_id=";
         String authenticationMethod = "None";
         String emailSubject = "请签署文件";
 
@@ -118,7 +120,7 @@ public class EnvelopeService {
 
         // 3. 获取签字链接
         RecipientViewRequest viewRequest = new RecipientViewRequest();
-        viewRequest.setReturnUrl(return_url);
+        viewRequest.setReturnUrl(return_url + envelopeId);
         viewRequest.setAuthenticationMethod(authenticationMethod);
         viewRequest.setEmail(signerEmail);
         viewRequest.setUserName(signerName);
