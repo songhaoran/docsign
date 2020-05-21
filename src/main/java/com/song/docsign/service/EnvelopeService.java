@@ -18,9 +18,11 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Resource;
 import java.io.*;
 import java.util.List;
 import java.util.*;
+
 
 /**
  * Created by Song on 2020/05/15.
@@ -31,16 +33,20 @@ public class EnvelopeService {
 
     private static final int TIMEOUT = 5000;
 
+    @Resource
+    private DocSignUtil docSignUtil;
+
     /**
      * 生成签署文件链接
      *
      * @return
      * @throws Exception
      */
-    public String getDocSignUrl(String templateId) {
+    public String getDocSignUrl(String templateId) throws Exception {
         String signerName = "wen";
+//        String signerEmail = "30888649@qq.com";
         String signerEmail = "wen-8801@163.com";
-        String signerClientUserId;
+        String signerClientUserId = "";
         String roleName = "investor";
         String return_url = "http://localhost:8080";
         String authenticationMethod = "None";
@@ -48,15 +54,17 @@ public class EnvelopeService {
 
 
         // 1. 创建用户
-        UsersApi usersApi = DocSignUtil.getUsersApi();
+        UsersApi usersApi = docSignUtil.getUsersApi();
         UserInformation userInformation = new UserInformation();
         userInformation.setEmail(signerEmail);
-        userInformation.setUserName(signerName);
+        userInformation.setFirstName("wenhao");
+        userInformation.setLastName("song");
+        userInformation.setUserName(userInformation.getFirstName() + " " + userInformation.getLastName());
         NewUsersDefinition newUsersDefinition = new NewUsersDefinition();
         newUsersDefinition.addNewUsersItem(userInformation);
         List<NewUser> newUsers = null;
         try {
-            NewUsersSummary newUsersSummary = usersApi.create(DocSignUtil.accountId, newUsersDefinition);
+            NewUsersSummary newUsersSummary = usersApi.create(docSignUtil.getAccountId(), newUsersDefinition);
             newUsers = newUsersSummary.getNewUsers();
             if (newUsers.size() == 0) {
                 return "";
@@ -65,6 +73,7 @@ public class EnvelopeService {
             e.printStackTrace();
             return "";
         }
+        log.info("[]new user->{}", JSON.toJSONString(newUsers));
         signerClientUserId = newUsers.get(0).getUserId();
 
 
@@ -94,10 +103,10 @@ public class EnvelopeService {
         envelopeDefinition.setStatus("sent");
         envelopeDefinition.setTemplateRoles(Arrays.asList(templateRole));
 
-        EnvelopesApi envelopesApi = DocSignUtil.getEnvelopesApi();
+        EnvelopesApi envelopesApi = docSignUtil.getEnvelopesApi();
         EnvelopeSummary envelopeSummary;
         try {
-            envelopeSummary = envelopesApi.createEnvelope(DocSignUtil.accountId, envelopeDefinition);
+            envelopeSummary = envelopesApi.createEnvelope(docSignUtil.getAccountId(), envelopeDefinition);
         } catch (ApiException e) {
             log.error("", e);
             throw new RuntimeException(e.getMessage());
@@ -116,7 +125,7 @@ public class EnvelopeService {
         viewRequest.setClientUserId(signerClientUserId);
         ViewUrl viewUrl;
         try {
-            viewUrl = envelopesApi.createRecipientView(DocSignUtil.accountId, envelopeId, viewRequest);
+            viewUrl = envelopesApi.createRecipientView(docSignUtil.getAccountId(), envelopeId, viewRequest);
         } catch (ApiException e) {
             log.error("", e);
             throw new RuntimeException(e.getMessage());
@@ -128,19 +137,6 @@ public class EnvelopeService {
         return signUrl;
     }
 
-    /**
-     * 获取envelope详情
-     *
-     * @param envelopeId
-     * @return
-     * @throws Exception
-     */
-    public Envelope getEnvelopeDetail(String envelopeId) throws Exception {
-        EnvelopesApi envelopesApi = DocSignUtil.getEnvelopesApi();
-        Envelope envelope = envelopesApi.getEnvelope(DocSignUtil.accountId, envelopeId);
-        return envelope;
-    }
-
 
     /**
      * 下载已签署文档
@@ -148,13 +144,17 @@ public class EnvelopeService {
      * @param envelopeId
      * @throws Exception
      */
-    public void downloadSignedDoc(String envelopeId) {
+    public void downloadSignedDoc(String envelopeId) throws Exception {
         try {
-            EnvelopesApi envelopesApi = DocSignUtil.getEnvelopesApi();
-            EnvelopeDocumentsResult envelopeDocumentsResult = envelopesApi.listDocuments(DocSignUtil.accountId, envelopeId);
+            EnvelopesApi envelopesApi = docSignUtil.getEnvelopesApi();
+            EnvelopeDocumentsResult envelopeDocumentsResult = envelopesApi.listDocuments(docSignUtil.getAccountId(), envelopeId);
             List<EnvelopeDocument> envelopeDocumentList = envelopeDocumentsResult.getEnvelopeDocuments();
             envelopeDocumentList.forEach(doc -> {
-                this.downloadByUri(doc.getUri(), doc.getName());
+                try {
+                    this.downloadByUri(doc.getUri(), doc.getName());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             });
         } catch (ApiException e) {
             log.error("[]", e);
@@ -169,15 +169,15 @@ public class EnvelopeService {
      * @param uri
      * @param localFileName
      */
-    public void downloadByUri(String uri, String localFileName) {
+    public void downloadByUri(String uri, String localFileName) throws Exception {
         String downloadApi = "/v2/accounts/{ACCOUNT_ID}";
 
         Map<String, String> headers = new HashMap<>();
         headers.put("Accept", "*/*");
         headers.put("Accept-Encoding", "gzip, deflate, br");
         headers.put("Connection", "keep-alive");
-        headers.put("Authorization", "Bearer " + DocSignUtil.accessToken);
-        String url = DocSignUtil.basePath + (downloadApi.replace("{ACCOUNT_ID}", DocSignUtil.accountId)) + uri;
+        headers.put("Authorization", docSignUtil.getAuthorization());
+        String url = DocSignUtil.sand_box_rest_api_base_url + (downloadApi.replace("{ACCOUNT_ID}", docSignUtil.getAccountId())) + uri;
 
         HttpGet httpGet = new HttpGet(url);
         for (Map.Entry<String, String> entry : headers.entrySet()) {
@@ -230,14 +230,18 @@ public class EnvelopeService {
      * @param templateId
      * @throws Exception
      */
-    public void downloadTemplateDocs(String templateId) {
+    public void downloadTemplateDocs(String templateId) throws Exception {
         try {
-            TemplatesApi templatesApi = DocSignUtil.getTemplatesApi();
-            TemplateDocumentsResult templateDocumentsResult = templatesApi.listDocuments(DocSignUtil.accountId, templateId);
+            TemplatesApi templatesApi = docSignUtil.getTemplatesApi();
+            TemplateDocumentsResult templateDocumentsResult = templatesApi.listDocuments(docSignUtil.getAccountId(), templateId);
             List<EnvelopeDocument> documentList = templateDocumentsResult.getTemplateDocuments();
 
             documentList.forEach(doc -> {
-                this.downloadByUri(doc.getUri(), doc.getName());
+                try {
+                    this.downloadByUri(doc.getUri(), doc.getName());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             });
         } catch (ApiException e) {
             log.error("[]", e);
@@ -252,7 +256,7 @@ public class EnvelopeService {
      * @return
      * @throws Exception
      */
-    public String createTemplate() {
+    public String createTemplate() throws Exception {
         try {
             InputStream in = null;
             File file;
@@ -296,8 +300,8 @@ public class EnvelopeService {
             envelopeTemplate.setDescription("测试desc");
             envelopeTemplate.setShared(Boolean.TRUE.toString());
 
-            TemplatesApi templatesApi = DocSignUtil.getTemplatesApi();
-            TemplateSummary templateSummary = templatesApi.createTemplate(DocSignUtil.accountId, envelopeTemplate);
+            TemplatesApi templatesApi = docSignUtil.getTemplatesApi();
+            TemplateSummary templateSummary = templatesApi.createTemplate(docSignUtil.getAccountId(), envelopeTemplate);
             String templateId = templateSummary.getTemplateId();
             return templateId;
         } catch (IOException e) {
@@ -308,4 +312,6 @@ public class EnvelopeService {
             return "";
         }
     }
+
+
 }
